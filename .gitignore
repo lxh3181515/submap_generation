@@ -1,9 +1,10 @@
 *.pickle
 
-dataset/*
-res/*
+dataset/
+res/
+output/
 
 build/
 .vscode/
 .idea/
-__pycache__/
+**/__pycache__

@@ -36,7 +36,7 @@ def visualize_clouds(cloud, pcd_name, colors=None):
 
 if __name__ == '__main__':
 
-    folder_path = '/home/lxhong/work_space/submap/dataset/corridor/south_4f_run1/submaps'
+    folder_path = '/home/lxhong/work_space/submap/output/NAVER/HyundaiDepartmentStore/1F/submaps'
     pcds, files = load_pcds(folder_path)
 
     # base_path = '/home/lxhong/work_space/submap/dataset'

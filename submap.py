@@ -3,15 +3,12 @@ from tqdm import tqdm
 import open3d as o3d
 import os
 import pandas as pd
-# from modules.corridor_dataloader import DataLoader
-from modules.naver_dataloader import DataLoader
-from scipy.spatial import KDTree
-import matplotlib.pyplot as plt
+from modules.corridor_dataloader import DataLoader
+# from modules.naver_dataloader import DataLoader
 from multiprocessing import Pool
-import multiprocessing
 
 from vis_pointcloud import visualize_clouds
-from ground_segmentation import remove_ground_ceiling
+from ground_segmentation import remove_ground_ceiling, remove_ground
 
 
 def transform_to_world(clouds, poses):
@@ -60,7 +57,6 @@ def get_submaps_centroid(poses, centroid_dis):
             continue
         # Add to centroids
         centroid_idxs.append(idx)
-    print('Total submaps:', len(centroid_idxs))
     return centroid_idxs
 
 
@@ -95,7 +91,7 @@ def crop_point_cloud(pc, radius):
     return np.vstack(pc_crop)
 
 
-def get_submaps_task(cii, centroid_idxs, width, clouds, poses, output_path, align):
+def get_submaps_task(cii, centroid_idxs, width, clouds, poses, output_path, align, view):
     voxel_size = 0.1
     points_num = 4096
 
@@ -115,6 +111,7 @@ def get_submaps_task(cii, centroid_idxs, width, clouds, poses, output_path, alig
     # world frame -> centroid frame
     if align:
         R_ref_inv = np.eye(3)
+        ref[-1, -1] = 0
     else:
         R_ref_inv = ref[:, :3].T
     t_ref_inv = np.dot(-R_ref_inv, ref[:, -1])
@@ -124,13 +121,21 @@ def get_submaps_task(cii, centroid_idxs, width, clouds, poses, output_path, alig
     submap = transform_to_world(cl, po)
 
     ## Down sample
+    pc_view = []
     # Voxel grid filter
     pc = o3d.geometry.PointCloud()
     pc.points = o3d.utility.Vector3dVector(submap)
+    pc_view.append(o3d.geometry.PointCloud(pc))
     pc = pc.voxel_down_sample(voxel_size=voxel_size)
     pc = np.asarray(pc.points)
     # Remove ground plane
-    pc = remove_ground_ceiling(pc, -0.35, 2.95)
+    # Dept.1F/B1:-0.35, 2.95;
+    # Stat.B1/B2:-0.35, 2.00;
+    # corridor:-0.15, 2.45
+    pc = remove_ground_ceiling(pc, -0.15, 2.45) 
+    pc_o3d = o3d.geometry.PointCloud()
+    pc_o3d.points = o3d.utility.Vector3dVector(pc)
+    pc_view.append(pc_o3d)
     # Crop
     pc = crop_point_cloud(pc, width)
     # FPS
@@ -139,9 +144,12 @@ def get_submaps_task(cii, centroid_idxs, width, clouds, poses, output_path, alig
     pc = pc / width
 
     output_to_pcd(cii, pc, output_path)
+    if view:
+        visualize_clouds(pc_view[0], 'before')
+        visualize_clouds(pc_view[1], 'after')
 
 
-def get_submaps(centroid_idxs, width, clouds, poses, output_path, align=False):
+def get_submaps(centroid_idxs, width, clouds, poses, output_path, align=False, view=False):
     # tqdm setting
     pbar = tqdm(total=len(centroid_idxs))
     pbar.set_description('Generating submaps')
@@ -149,16 +157,18 @@ def get_submaps(centroid_idxs, width, clouds, poses, output_path, align=False):
 
     # Multi processing
     n_proc = 12
+    if view:
+        n_proc = 1
     pool = Pool(n_proc)
     for cii in range(len(centroid_idxs)):
-        pool.apply_async(get_submaps_task, args=(cii, centroid_idxs, width, clouds, poses, output_path, align), callback=update)
+        pool.apply_async(get_submaps_task, args=(cii, centroid_idxs, width, clouds, poses, output_path, align, view), callback=update)
     pool.close()
     pool.join()
 
 
 if __name__ == '__main__':
 
-    run_path = 'NAVER/HyundaiDepartmentStore/1F'
+    run_path = 'corridor/south_4f_run2'
     
     data_folder = 'dataset'
     output_folder = 'output'
@@ -171,12 +181,11 @@ if __name__ == '__main__':
     poses, clouds = dataloader.get_data()
 
     # Get centroids
-    centroid_dis = 5.0  # meter
+    centroid_dis = 1.0  # meter
     centroid_idxs = get_submaps_centroid(poses, centroid_dis)
     output_to_csv([poses[i] for i in centroid_idxs], output_path)
     
     # Get submaps
-    submap_width = 20.0
-    get_submaps(centroid_idxs, submap_width, clouds, poses, output_path, align=True)
+    submap_width = 10.0
+    get_submaps(centroid_idxs, submap_width, clouds, poses, output_path, align=True, view=False)
     print('Done.')
- 

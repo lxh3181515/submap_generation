@@ -3,7 +3,7 @@ import open3d as o3d
 from vis_pointcloud import visualize_clouds
 
 
-def remove_ground(pc, ceiling=False, show=False):
+def remove_ground(pc, ceiling=False):
     angle_threshold = np.deg2rad(10)
     num_iter = 10
     
@@ -38,7 +38,7 @@ def remove_ground(pc, ceiling=False, show=False):
             # Get plane z-axis
             z = -d / c
             # Check ceiling plane
-            if angle_with_z < angle_threshold and z > 2.5:
+            if angle_with_z < angle_threshold and z > 2.0:
                 plane = pc_copy.select_by_index(inliers)
                 break
             else:
@@ -51,13 +51,7 @@ def remove_ground(pc, ceiling=False, show=False):
     # Get inlier and outlier pointcloud
     remove_points = np.unique(remove_points, axis=0)
     indices_to_remove = np.array([np.where((pc_points == point).all(axis=1))[0][0] for point in remove_points])
-    inlier_cloud = pc.select_by_index(indices_to_remove)
     outlier_cloud = pc.select_by_index(indices_to_remove, invert=True)
-
-    if show:
-        inlier_cloud.paint_uniform_color([1.0, 0, 0])
-        outlier_cloud.paint_uniform_color([0, 1.0, 0])
-        o3d.visualization.draw_geometries([inlier_cloud, outlier_cloud])
     
     return outlier_cloud
 

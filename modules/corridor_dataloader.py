@@ -1,6 +1,7 @@
 import numpy as np
 import open3d as o3d
 import os
+from tqdm import tqdm
 
 
 class DataLoader:
@@ -22,11 +23,10 @@ class DataLoader:
         pcd_files = sorted(pcd_files, key=lambda x: int(x[6:-4]))
         print('PCD files name:', pcd_files[0:3], '...')
         # Load point clouds
-        print('Loading PCD...')
-        clouds_o3d = [o3d.io.read_point_cloud(os.path.join(cloud_path, file)) for file in pcd_files]
-        # o3d datatype -> numpy
-        clouds_np = [np.asarray(cl.points) for cl in clouds_o3d]
-        print('Total clouds:', len(clouds_np))
+        clouds_np = []
+        for file in tqdm(pcd_files, desc='Loading PCD'):
+            clouds_o3d = o3d.io.read_point_cloud(os.path.join(cloud_path, file))
+            clouds_np.append(np.asarray(clouds_o3d.points))
 
         return clouds_np
     
